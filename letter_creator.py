@@ -359,6 +359,9 @@ def main():
             st.markdown("---")
             st.header(UI_MESSAGES["personalization_header"])
             chat(st.session_state[SESSION_KEYS["generated_cover_letter"]])
+        
+    st.info(UI_MESSAGES["Note"], icon="ℹ️")
+
 
 if __name__ == "__main__":
     main()
