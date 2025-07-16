@@ -9,9 +9,12 @@ It is recommended to run this script in an environment where the Ollama API is a
 import streamlit as st
 import requests
 import json
-# import PyPDF2
+from extract_resume import extract
+from resume_cleaner import clean_resume
 import fitz # PyMuPDF
 import time
+import tempfile
+import os
 from docx import Document
 
 # Define the Ollama API endpoint and the model name
@@ -60,20 +63,53 @@ The goal is to create a professional, eager-to-learn, and concise cover letter.
 """
     return prompt
 
-def read_file(file):
+def read_file(file, file_type: int):
     if file is None:
         return ""
+    
     if file.type == "application/pdf":
-        # Read the file bytes and open with PyMuPDF
-        file_bytes = file.read()
-        reader = fitz.open(stream=file_bytes, filetype="pdf")
-        text = ""
-        for page in reader:
-            text += page.get_text() or ""
-        # # Save to file
-        with open("generated_resume.txt", "w", encoding="utf-8") as f:
-            f.write(text)
-        return text
+        # Save uploaded file to temporary location
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            file.seek(0)  # Reset file pointer to beginning
+            tmp_file.write(file.read())
+            temp_pdf_path = tmp_file.name
+        
+        try:
+            # Call your existing extract function with the temporary file path
+            extracted_text = extract(temp_pdf_path)
+            if file_type == 0:
+                # Clean the extracted text using the Ollama model
+                with st.spinner("Cleaning and processing your resume..."):
+                    clean_resume_text = clean_resume(extracted_text)
+                return clean_resume_text
+            elif file_type == 1:
+                # If it's a job description, just return the extracted text
+                return extracted_text
+             
+        except Exception as e:
+            print(f"Error extracting PDF: {e}")
+            # Fallback to simple PyMuPDF extraction
+            file.seek(0)
+            file_bytes = file.read()
+            reader = fitz.open(stream=file_bytes, filetype="pdf")
+            text = ""
+            for page in reader:
+                text += page.get_text() or ""
+            reader.close()
+            # If it's a resume, clean the extracted text
+            if file_type == 0:
+                # Show loading spinner
+                with st.spinner("Cleaning and processing your resume..."):
+                    clean_resume_text = clean_resume(text)
+                return clean_resume_text
+            # If it's a job description, just return the extracted text
+            else:
+                return text
+        finally:
+            # Always clean up the temporary file
+            if os.path.exists(temp_pdf_path):
+                os.unlink(temp_pdf_path)
+    
     elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         doc = Document(file)
         return "\n".join([para.text for para in doc.paragraphs])
@@ -202,6 +238,16 @@ if __name__ == "__main__":
     if "cover_letter_placeholder" not in st.session_state:
         st.session_state.cover_letter_placeholder = st.empty()
     
+    # Initialize session state for caching processed files
+    if "processed_resume_text" not in st.session_state:
+        st.session_state.processed_resume_text = ""
+    if "processed_job_description" not in st.session_state:
+        st.session_state.processed_job_description = ""
+    if "last_resume_file_name" not in st.session_state:
+        st.session_state.last_resume_file_name = ""
+    if "last_job_file_name" not in st.session_state:
+        st.session_state.last_job_file_name = ""
+    
     # Sidebar for file uploads
     st.sidebar.header("Upload Your Resume")
     resume_file = st.sidebar.file_uploader(
@@ -216,7 +262,6 @@ if __name__ == "__main__":
         key="resume_text_input"
     )
 
-
     st.sidebar.header("Upload Job Description")
     job_file = st.sidebar.file_uploader(
         "Choose the job description file (PDF, DOCX, or TXT)", 
@@ -230,19 +275,43 @@ if __name__ == "__main__":
         key="job_description_input"
     )
 
-    # Use the pasted text if available, otherwise read from uploaded files
+    # Use the pasted text if available, otherwise use cached or process files
     resume_text = resume_text_input.strip() if resume_text_input else ""    
     job_description = job_description_input.strip() if job_description_input else ""
 
-     # Only read from files if no text is pasted
+    # Process resume file only if no text is pasted and file has changed
     if resume_file and not resume_text:
-        # Read the resume file if no text is pasted
-        resume_text = read_file(resume_file)    
-    if job_file and not job_description:
-        # Read the job description file if no text is pasted
-        job_description = read_file(job_file)
-
+        current_resume_file_name = resume_file.name
+        # Only process if it's a new file or not processed before
+        if (current_resume_file_name != st.session_state.last_resume_file_name or 
+            not st.session_state.processed_resume_text):
+            resume_text = read_file(resume_file, 0)
+            st.session_state.processed_resume_text = resume_text
+            st.session_state.last_resume_file_name = current_resume_file_name
+        else:
+            # Use cached processed text
+            resume_text = st.session_state.processed_resume_text
     
+    # Process job description file only if no text is pasted and file has changed
+    if job_file and not job_description:
+        current_job_file_name = job_file.name
+        # Only process if it's a new file or not processed before
+        if (current_job_file_name != st.session_state.last_job_file_name or 
+            not st.session_state.processed_job_description):
+            job_description = read_file(job_file, 1)
+            st.session_state.processed_job_description = job_description
+            st.session_state.last_job_file_name = current_job_file_name
+        else:
+            # Use cached processed text
+            job_description = st.session_state.processed_job_description
+
+    # Clear cached data when text is pasted (overrides file upload)
+    if resume_text_input.strip():
+        st.session_state.processed_resume_text = ""
+        st.session_state.last_resume_file_name = ""
+    if job_description_input.strip():
+        st.session_state.processed_job_description = ""
+        st.session_state.last_job_file_name = ""
     
     # Check if both files are uploaded
     if not resume_text:
@@ -256,14 +325,13 @@ if __name__ == "__main__":
         if job_description:
             st.sidebar.success("✅ Job description ready!")
 
-   # Show appropriate info messages
+    # Show appropriate info messages
     if not resume_text and not job_description:
         st.info("👆 Please upload both your resume and job description files from the sidebar, or paste the text directly, then click 'Generate Cover Letter'.")
     elif not resume_text:
         st.info("👆 Please upload your resume file or paste resume text from the sidebar, then click 'Generate Cover Letter'.")
     elif not job_description:
         st.info("👆 Please upload the job description file or paste job description text from the sidebar, then click 'Generate Cover Letter'.")
-
 
     if resume_text and job_description:
         # Add Create Button in sidebar
@@ -289,11 +357,6 @@ if __name__ == "__main__":
                 
                 # Display the letter
                 display_text(generated_cover_letter)
-                
-                # # Save to file
-                # with open("generated_cover_letter.txt", "w", encoding="utf-8") as f:
-                #     f.write(generated_cover_letter)
-                    
 
         # Display existing cover letter if already generated
         elif "cover_letter_generated" in st.session_state and st.session_state.cover_letter_generated:

@@ -31,7 +31,6 @@ def query_ollama(model, prompt):
     response = requests.post(OLLAMA_URL, json=payload)
     response.raise_for_status()
     data = response.json()
-    print(f"Response from Ollama: {data}")
     return data.get("response", "")
 
 def remove_extra_intro(text):
