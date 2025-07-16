@@ -203,4 +203,4 @@ If you encounter any issues or have questions:
 
 ---
 
-**Made with ❤️ for job seekers everywhere**
+**Made with by [No0Bitah](https://no0bitah.github.io/) 👋**

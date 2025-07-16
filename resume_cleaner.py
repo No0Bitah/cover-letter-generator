@@ -1,70 +1,124 @@
-import requests
-import re
-
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.1:8b"
-USER_PROMPT = """
-organize the resume text into a clean, structured format. The original text had a two-column layout that got jumbled during extraction, reorganized it into proper sections with clear hierarchy:
-
-Header - Name and title
-Contact Information - Address, phone, email
-Career Overview - Professional summary
-Education - Degrees with dates and institutions
-Work Experience - Jobs in reverse chronological order with company, position, duration, and responsibilities
-Skills - Technical and soft skills
-
-**MAKE SURE TO PUT CORRECT SPELLING AND Information
-**DO NOT MAKEUP ADDITIONAL INFO
-
-Important NOTE! ***
-					1.ONLY OUTPUT THE TAILORED RESUME DON'T INCLUDE OTHER TEXTS!
-				***
+# resume_cleaner.py
+"""
+Resume cleaning module that uses Ollama API to clean and format resume text.
+This module imports configuration from config.py for consistency.
 """
 
-def query_ollama(model, prompt):
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False
+import requests
+import json
+from config import (
+    OLLAMA_API_URL,
+    MODEL_NAME,
+    MODEL_PARAMETERS,
+    RESUME_CLEANING_PROMPT_TEMPLATE,
+    ERROR_MESSAGES
+)
+
+def clean_resume(resume_text: str) -> str:
+    """
+    Clean and format resume text using Ollama API.
+    
+    Args:
+        resume_text (str): Raw resume text to be cleaned
+        
+    Returns:
+        str: Cleaned and formatted resume text
+    """
+    if not resume_text.strip():
+        return ""
+    
+    # Generate the cleaning prompt using the template from config
+    prompt = RESUME_CLEANING_PROMPT_TEMPLATE.format(resume_text=resume_text)
+    
+    headers = {
+        "Content-Type": "application/json"
     }
-    response = requests.post(OLLAMA_URL, json=payload)
-    response.raise_for_status()
-    data = response.json()
-    return data.get("response", "")
 
-def remove_extra_intro(text):
-    """
-    Removes common introductory phrases or sentences from the AI response.
-    """
-    # List of common intro phrases to remove (case-insensitive)
-    patterns = [
-        r"^here is the reorganized resume.*?:\s*",  # e.g., "Here is the reorganized resume in a clean and structured format:"
-        r"^organized resume:\s*",
-        r"^cleaned resume:\s*",
-        r"^below is.*?:\s*",
-        r"^the cleaned and structured resume is as follows:\s*",
-        r"^resume:\s*",
-    ]
-    cleaned = text
-    for pat in patterns:
-        cleaned = re.sub(pat, '', cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
+    # Payload to send to the API
+    data = {
+        "model": MODEL_NAME,
+        "prompt": prompt,
+        **MODEL_PARAMETERS
+    }
 
-def clean_resume(resume_text):
-    """ Clean the resume text using Ollama model
-    """
     try:
-        result = query_ollama(MODEL, USER_PROMPT + " " + resume_text)
-
-        # Remove any extra introductory text
-        result = remove_extra_intro(result)
-        # save the result to a file for debugging
-        with open("resume-result.txt", "w", encoding="utf-8") as f:
-            f.write(result)
-        return result
-    except requests.RequestException as e:
-        return f"Error querying Ollama: {str(e)}"
+        response = requests.post(OLLAMA_API_URL, headers=headers, data=json.dumps(data))
+        
+        # Check if the response is successful
+        if response.status_code == 200:
+            result = response.json()
+            return result['response']
+        else:
+            error_msg = ERROR_MESSAGES["api_error"].format(
+                status_code=response.status_code,
+                error_text=response.text
+            )
+            print(f"Resume cleaning error: {error_msg}")
+            # Return original text if cleaning fails
+            return resume_text
+            
     except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        error_msg = ERROR_MESSAGES["general_error"].format(error=str(e))
+        print(f"Resume cleaning error: {error_msg}")
+        # Return original text if cleaning fails
+        return resume_text
 
+def validate_resume_text(resume_text: str) -> bool:
+    """
+    Validate if the resume text contains essential information.
+    
+    Args:
+        resume_text (str): Resume text to validate
+        
+    Returns:
+        bool: True if resume appears to be valid, False otherwise
+    """
+    if not resume_text or len(resume_text.strip()) < 50:
+        return False
+    
+    # Check for common resume sections/keywords
+    resume_keywords = [
+        'experience', 'education', 'skills', 'work', 'employment',
+        'university', 'college', 'degree', 'certification', 'project'
+    ]
+    
+    text_lower = resume_text.lower()
+    keyword_count = sum(1 for keyword in resume_keywords if keyword in text_lower)
+    
+    # Resume should contain at least 2 common keywords
+    return keyword_count >= 2
+
+def extract_key_sections(resume_text: str) -> dict:
+    """
+    Extract key sections from resume text for better processing.
+    
+    Args:
+        resume_text (str): Resume text to process
+        
+    Returns:
+        dict: Dictionary containing different sections of the resume
+    """
+    sections = {
+        'full_text': resume_text,
+        'has_contact_info': False,
+        'has_experience': False,
+        'has_education': False,
+        'has_skills': False
+    }
+    
+    text_lower = resume_text.lower()
+    
+    # Check for different sections
+    if any(keyword in text_lower for keyword in ['email', 'phone', 'linkedin', '@']):
+        sections['has_contact_info'] = True
+    
+    if any(keyword in text_lower for keyword in ['experience', 'work', 'employment', 'job']):
+        sections['has_experience'] = True
+    
+    if any(keyword in text_lower for keyword in ['education', 'university', 'college', 'degree']):
+        sections['has_education'] = True
+    
+    if any(keyword in text_lower for keyword in ['skills', 'technology', 'programming', 'software']):
+        sections['has_skills'] = True
+    
+    return sections
