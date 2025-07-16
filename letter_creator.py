@@ -41,6 +41,7 @@ The goal is to create a professional, eager-to-learn, and concise cover letter.
     4. Make the tone of the cover letter enthusiastic and focused on giving their best to the work.
     5. Format the cover letter to be brief, as most hiring teams prefer short and to-the-point emails.
     6. Use a professional tone, avoiding any casual language and use words not more than 200.
+    7. Use Email format, including a subject line and a greeting.
 
     
     Include the resume and job description below and generate the cover letter formatted as an email.
@@ -207,35 +208,62 @@ if __name__ == "__main__":
         "Choose your resume file (PDF, DOCX, or TXT)", 
         type=["pdf", "docx", "txt"]
     )
+    st.sidebar.markdown("---")
+    st.sidebar.header("Or Paste Resume Text")
+    resume_text_input = st.sidebar.text_area(
+        "Paste your resume text here (optional, overrides uploaded file)",
+        height=200,
+        key="resume_text_input"
+    )
+
 
     st.sidebar.header("Upload Job Description")
     job_file = st.sidebar.file_uploader(
         "Choose the job description file (PDF, DOCX, or TXT)", 
         type=["pdf", "docx", "txt"]
     )
+    st.sidebar.markdown("---")
+    st.sidebar.header("Or Paste Job Description Text")
+    job_description_input = st.sidebar.text_area(
+        "Paste the job description here (optional, overrides uploaded file)",
+        height=200,
+        key="job_description_input"
+    )
 
-    # Read files from uploads
-    resume_text = read_file(resume_file)
-    job_description = read_file(job_file)
+    # Use the pasted text if available, otherwise read from uploaded files
+    resume_text = resume_text_input.strip() if resume_text_input else ""    
+    job_description = job_description_input.strip() if job_description_input else ""
 
+     # Only read from files if no text is pasted
+    if resume_file and not resume_text:
+        # Read the resume file if no text is pasted
+        resume_text = read_file(resume_file)    
+    if job_file and not job_description:
+        # Read the job description file if no text is pasted
+        job_description = read_file(job_file)
 
+    
     
     # Check if both files are uploaded
     if not resume_text:
-        st.sidebar.error("Please upload your resume file first.")
+        st.sidebar.error("Please upload your resume file or paste resume text.")
     elif not job_description:
-        st.sidebar.error("Please upload the job description file first.")
-    elif not resume_text or not job_description:
+        st.sidebar.error("Please upload the job description file or paste job description text.")
+    else:
+        # Show success messages
         if resume_text:
-            st.sidebar.success("✅ Resume uploaded successfully!")
+            st.sidebar.success("✅ Resume ready!")
         if job_description:
-            st.sidebar.success("✅ Job description uploaded successfully!")
-        if not resume_text and not job_description:
-            st.info("👆 Please upload both your resume and job description files from the sidebar, then click 'Generate Cover Letter'.")
-        elif not resume_text:
-            st.info("👆 Please upload your resume file from the sidebar, then click 'Generate Cover Letter'.")
-        elif not job_description:
-            st.info("👆 Please upload the job description file from the sidebar, then click 'Generate Cover Letter'.")
+            st.sidebar.success("✅ Job description ready!")
+
+   # Show appropriate info messages
+    if not resume_text and not job_description:
+        st.info("👆 Please upload both your resume and job description files from the sidebar, or paste the text directly, then click 'Generate Cover Letter'.")
+    elif not resume_text:
+        st.info("👆 Please upload your resume file or paste resume text from the sidebar, then click 'Generate Cover Letter'.")
+    elif not job_description:
+        st.info("👆 Please upload the job description file or paste job description text from the sidebar, then click 'Generate Cover Letter'.")
+
 
     if resume_text and job_description:
         # Add Create Button in sidebar
