@@ -9,6 +9,7 @@ It is recommended to run this script in an environment where the Ollama API is a
 import streamlit as st
 import requests
 import json
+import html
 from extract_resume import extract
 from resume_cleaner import clean_resume
 import fitz # PyMuPDF
@@ -127,6 +128,8 @@ def query_ollama(prompt):
         # Check if the response is successful
         if response.status_code == 200:
             result = response.json()
+            print("OLLAMA RAW RESPONSE:")
+            print(repr(result['response']))  # Or use logging
             return result['response']
         else:
             error_msg = ERROR_MESSAGES["api_error"].format(
@@ -153,7 +156,8 @@ def display_text(response: str, typing_speed: float = TYPING_SPEED):
     text = ""
     for char in response:
         text += char
-        placeholder.markdown(styled_container + text + closing_container, unsafe_allow_html=True)
+        escaped_text = html.escape(text)
+        placeholder.markdown(styled_container + escaped_text + closing_container, unsafe_allow_html=True)
         time.sleep(typing_speed)
     
     # Store the final displayed text in session state to persist it

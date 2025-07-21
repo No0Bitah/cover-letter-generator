@@ -226,21 +226,21 @@ def extract(pdf_path):
         # Try the hybrid approach to compare results
         results = method7_hybrid_approach(pdf_path)
         
-        # Print results from each method
-        for method_name, text in results.items():
-            print(f"\n{'='*50}")
-            print(f"METHOD: {method_name}")
-            print(f"{'='*50}")
-            if isinstance(text, str):
-                preview = text[:500] + "..." if len(text) > 500 else text
-                print(preview)
-            else:
-                print(str(text))
+        # # Print results from each method
+        # for method_name, text in results.items():
+        #     print(f"\n{'='*50}")
+        #     print(f"METHOD: {method_name}")
+        #     print(f"{'='*50}")
+        #     if isinstance(text, str):
+        #         preview = text[:500] + "..." if len(text) > 500 else text
+        #         print(preview)
+        #     else:
+        #         print(str(text))
         
-        # For immediate use, try PDFPlumber first (often best for resumes)
-        print("\n" + "="*50)
-        print("RECOMMENDED: PDFPlumber Result")
-        print("="*50)
+        # # For immediate use, try PDFPlumber first (often best for resumes)
+        # print("\n" + "="*50)
+        # print("RECOMMENDED: PDFPlumber Result")
+        # print("="*50)
         
         try:
             best_result = method3_pdfplumber(pdf_path)

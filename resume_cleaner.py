@@ -4,6 +4,7 @@ Resume cleaning module that uses Ollama API to clean and format resume text.
 This module imports configuration from config.py for consistency.
 """
 
+import re
 import requests
 import json
 from config import (
@@ -13,6 +14,34 @@ from config import (
     RESUME_CLEANING_PROMPT_TEMPLATE,
     ERROR_MESSAGES
 )
+
+
+
+def extract_between_dashes(response: str) -> str:
+    """
+    Extracts only the content between the first two lines containing '---' in the response.
+    Returns an empty string if the pattern is not found.
+    """
+    dash_match = re.search(r"---\s*\n(.*?)\n---", response, flags=re.DOTALL)
+    if dash_match:
+        return dash_match.group(1).strip()
+
+    # Try to extract content after "Here is the" phrase
+    here_is_match = re.search(r"(Here (is|’s|s the)[^\n]*:\s*\n+)(.*)", response, flags=re.IGNORECASE | re.DOTALL)
+    if here_is_match:
+        return here_is_match.group(3).strip()
+
+    # Fallback: Remove any <think>...</think> block and return the rest
+    fallback = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL | re.IGNORECASE).strip()
+    if fallback:
+        # Remove any leading/trailing whitespace and return
+        fallback = re.sub(r"^\s+|\s+$", "", fallback)
+        if fallback:
+            return fallback
+    else:
+        return fallback if fallback else "No valid content found."  
+    # return fallback 
+    
 
 def clean_resume(resume_text: str) -> str:
     """
@@ -47,7 +76,12 @@ def clean_resume(resume_text: str) -> str:
         # Check if the response is successful
         if response.status_code == 200:
             result = response.json()
-            return result['response']
+            print("OLLAMA RAW RESPONSE befire cleaming resume:")
+            repr(result['response'])  # Or use logging
+            cleaned_cover_letter = extract_between_dashes(result['response'])
+            with open("generated_resume_cleaned.txt", "w", encoding="utf-8") as f:
+                f.write(cleaned_cover_letter)
+            return cleaned_cover_letter
         else:
             error_msg = ERROR_MESSAGES["api_error"].format(
                 status_code=response.status_code,

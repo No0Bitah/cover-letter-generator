@@ -7,7 +7,7 @@ model parameters, and prompt templates.
 
 # Ollama API Configuration
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "gemma:2b"
+MODEL_NAME = "llama3.1:8b"
 
 # Model Generation Parameters
 MODEL_PARAMETERS = {
